@@ -462,11 +462,26 @@ export default function App() {
         }
       }
 
+      const contentType = response.headers.get('content-type');
       if (selectedTool === 'host') {
+        if (!contentType || !contentType.includes('application/json')) {
+          const text = await response.text();
+          if (text.includes('<!doctype html>') || text.includes('<html')) {
+            if (text.includes('Cookie check') || text.includes('Authenticate in new window')) {
+              setShowFixConnection(true);
+              throw new Error('Connection verification required. Please click the "Verify Connection" button below.');
+            }
+          }
+          throw new Error('Server returned an invalid response. Please try again or verify your connection.');
+        }
         const data = await response.json();
         setResult(data);
         setProcessedUrl(data.url);
       } else {
+        if (contentType && contentType.includes('application/json')) {
+          const data = await response.json();
+          throw new Error(data.error || 'Processing failed');
+        }
         const blob = await response.blob();
         setProcessedBlob(blob);
         const url = URL.createObjectURL(blob);

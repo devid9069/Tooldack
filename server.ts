@@ -89,13 +89,22 @@ async function startServer() {
       let baseUrl = process.env.APP_URL;
       
       if (!baseUrl) {
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+        // Handle Vercel and other proxy environments
+        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
         const host = req.headers.host;
         baseUrl = `${protocol}://${host}`;
       }
       
       // Remove trailing slash if present
       baseUrl = baseUrl.replace(/\/$/, "");
+      
+      // Ensure the URL is valid
+      try {
+        new URL(baseUrl);
+      } catch (e) {
+        // If baseUrl is invalid (e.g. just a hostname), try to fix it
+        baseUrl = `https://${baseUrl}`;
+      }
       
       const url = `${baseUrl}/uploads/${req.file.filename}`;
 

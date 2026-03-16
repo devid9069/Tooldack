@@ -89,21 +89,37 @@ async function startServer() {
       let baseUrl = process.env.APP_URL;
       
       if (!baseUrl) {
-        // Handle Vercel and other proxy environments
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-        const host = req.headers.host;
+        // Handle Vercel, Cloud Run, and other proxy environments
+        // x-forwarded-proto can be a comma-separated list, we take the first one
+        const forwardedProto = req.headers['x-forwarded-proto'] as string;
+        const protocol = (forwardedProto ? forwardedProto.split(',')[0] : req.protocol) || 'https';
+        
+        const forwardedHost = req.headers['x-forwarded-host'] as string;
+        const host = forwardedHost || req.headers.host;
+        
         baseUrl = `${protocol}://${host}`;
       }
       
       // Remove trailing slash if present
       baseUrl = baseUrl.replace(/\/$/, "");
       
-      // Ensure the URL is valid
+      // Final validation and cleanup
       try {
-        new URL(baseUrl);
+        const urlObj = new URL(baseUrl);
+        // If it's a local or dev environment, we might keep http, 
+        // but for production-like hosts, we should prefer https if not specified
+        if (urlObj.hostname !== 'localhost' && !urlObj.hostname.includes('127.0.0.1') && urlObj.protocol === 'http:') {
+          // Only force https if we're reasonably sure it's a remote host
+          // and we don't have a specific APP_URL setting
+          if (!process.env.APP_URL) {
+            baseUrl = baseUrl.replace('http://', 'https://');
+          }
+        }
       } catch (e) {
-        // If baseUrl is invalid (e.g. just a hostname), try to fix it
-        baseUrl = `https://${baseUrl}`;
+        // Fallback for invalid URLs
+        if (baseUrl && !baseUrl.startsWith('http')) {
+          baseUrl = `https://${baseUrl}`;
+        }
       }
       
       const url = `${baseUrl}/uploads/${req.file.filename}`;
